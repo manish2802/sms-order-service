@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Finnhub Stock Quotes</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 24px;
+            background: #f7f9fb;
+            color: #1e293b;
+        }
+        .card {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 24px;
+            border-radius: 12px;
+            background: #ffffff;
+            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+        }
+        label,
+        button {
+            display: block;
+            width: 100%;
+        }
+        label {
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 1rem;
+            margin-bottom: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 12px 16px;
+            border: none;
+            border-radius: 8px;
+            background: #2563eb;
+            color: white;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        button:disabled {
+            opacity: 0.68;
+            cursor: not-allowed;
+        }
+        .hint {
+            margin-top: 12px;
+            color: #64748b;
+            font-size: 0.95rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 24px;
+        }
+        th,
+        td {
+            padding: 14px 12px;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+            font-size: 0.95rem;
+        }
+        th {
+            background: #f8fafc;
+            color: #0f172a;
+            letter-spacing: 0.01em;
+        }
+        .error-row {
+            color: #b91c1c;
+            background: #fef2f2;
+        }
+        .small {
+            font-size: 0.9rem;
+            color: #475569;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Finnhub Stock Quotes</h1>
+        <p>Enter one or more symbols separated by commas and fetch quotes from your backend.</p>
+
+        <label for="symbols">Symbols</label>
+        <input id="symbols" type="text" value="MSFT,AAPL,GOOG" placeholder="e.g. MSFT, AAPL, GOOG" />
+        <button id="fetchButton">Fetch Quotes</button>
+        <div class="hint">This page calls <code>/stocks/{symbol}</code> for each symbol on the same host.</div>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const button = document.getElementById('fetchButton');
+        const symbolsInput = document.getElementById('symbols');
+        const resultContainer = document.getElementById('result');
+
+        button.addEventListener('click', async () => {
+            const symbols = symbolsInput.value
+                .split(',')
+                .map(s => s.trim().toUpperCase())
+                .filter(Boolean);
+
+            if (!symbols.length) {
+                resultContainer.innerHTML = '<p class="small">Please enter at least one stock symbol.</p>';
+                return;
+            }
+
+            button.disabled = true;
+            resultContainer.innerHTML = '<p class="small">Fetching quotes...</p>';
+
+            try {
+                const responses = await Promise.allSettled(
+                    symbols.map(symbol => fetch(`/stocks/${encodeURIComponent(symbol)}`))
+                );
+
+                const rows = [];
+                for (let i = 0; i < symbols.length; i++) {
+                    const symbol = symbols[i];
+                    const response = responses[i];
+
+                    if (response.status === 'fulfilled') {
+                        const res = response.value;
+                        if (!res.ok) {
+                            const text = await res.text();
+                            rows.push({ symbol, error: `HTTP ${res.status}: ${text}` });
+                        } else {
+                            const json = await res.json();
+                            rows.push({ symbol, data: json });
+                        }
+                    } else {
+                        rows.push({ symbol, error: response.reason.message || 'Network error' });
+                    }
+                }
+
+                renderTable(rows);
+            } catch (error) {
+                resultContainer.innerHTML = `<p class="small">Fetch failed: ${error}</p>`;
+            } finally {
+                button.disabled = false;
+            }
+        });
+
+        function renderTable(rows) {
+            if (!rows.length) {
+                resultContainer.innerHTML = '<p class="small">No symbols provided.</p>';
+                return;
+            }
+
+            const header = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Company</th>
+                            <th>Last Price</th>
+                            <th>Change</th>
+                            <th>% Change</th>
+                            <th>Day High</th>
+                            <th>Day Low</th>
+                            <th>Volume</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            const body = rows.map(row => {
+                if (row.error) {
+                    return `
+                        <tr class="error-row">
+                            <td colspan="8">${row.symbol}: ${escapeHtml(row.error)}</td>
+                        </tr>
+                    `;
+                }
+                const data = row.data;
+                return `
+                    <tr>
+                        <td>${escapeHtml(data.symbol)}</td>
+                        <td>${escapeHtml(data.companyName)}</td>
+                        <td>${escapeHtml(data.lastPrice)}</td>
+                        <td>${escapeHtml(data.change)}</td>
+                        <td>${escapeHtml(data.changePercent)}</td>
+                        <td>${escapeHtml(data.dayHigh)}</td>
+                        <td>${escapeHtml(data.dayLow)}</td>
+                        <td>${escapeHtml(data.volume)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const footer = '</tbody></table>';
+            resultContainer.innerHTML = header + body + footer;
+        }
+
+        function escapeHtml(text) {
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+</html>
