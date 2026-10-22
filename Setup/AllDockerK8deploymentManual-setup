@@ -3,8 +3,7 @@ docker network create stock-market-network
 
 docker run -d --name sms-registry-server --network stock-market-network -p 8761:8761  manish28/sms-registry-server:latest
 
-docker run -d --name sms-wallet-service --network stock-market-network -p 9006:9006 -p 9090:9090 -e SPRING_PROFILES_ACTIVE=dev manish28/sms-wallet-service:latest
-  
+docker run -d --name sms-wallet-service --network stock-market-network -p 9006:8081 -p 9090:9090 -e SPRING_PROFILES_ACTIVE=dev manish28/sms-wallet-service:latest
  docker run -d --name sms-risk-service --network stock-market-network -p 9005:9005 -e SPRING_PROFILES_ACTIVE=dev manish28/sms-risk-service:latest
   
  docker run -d --name sms-order-service --network stock-market-network -p 9002:9002 -e SPRING_PROFILES_ACTIVE=dev  manish28/sms-order-service:latest

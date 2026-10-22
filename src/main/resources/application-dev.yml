@@ -47,7 +47,7 @@ management:
 eureka:
   client:
     service-url:
-      defaultZone: http://sms-registry-server:8761/eureka
+      defaultZone: http://sms-registry-server:8761/eureka/
 
 grpc:
   client:
